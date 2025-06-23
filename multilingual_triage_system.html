@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>急診分級系統 | Emergency Triage System</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #90EE90;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            position: relative;
+        }
+        .app {
+            background: #fff;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 700px;
+            width: 100%;
+        }
+        .language-selector {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 1rem;
+        }
+        .language-selector button {
+            padding: 0.5rem 1rem;
+            margin: 0 0.25rem;
+            font-size: 1rem;
+            border: 2px solid #007bff;
+            background: #f8f9fa;
+            color: #007bff;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .language-selector button.active {
+            background: #007bff;
+            color: white;
+        }
+        .question {
+            font-size: 1.8rem;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+            min-height: 3em;
+        }
+        .buttons button {
+            padding: 1rem 1.5rem;
+            margin: 0 0.5rem 0.5rem 0;
+            font-size: 1.2rem;
+            border: 2px solid #007bff;
+            background: #007bff;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            min-width: 80px;
+            touch-action: manipulation;
+        }
+        .buttons button:hover {
+            background: #0056b3;
+        }
+        .buttons button:active {
+            transform: scale(0.98);
+        }
+        
+        @media (max-width: 768px) {
+            .app {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+            .question {
+                font-size: 1.6rem;
+            }
+            .buttons {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .buttons button {
+                width: 100%;
+                margin: 0;
+                padding: 1.2rem;
+                font-size: 1.3rem;
+            }
+            .attribution {
+                bottom: 10px;
+                right: 10px;
+                font-size: 0.8rem;
+            }
+        }
+        .result {
+            margin-top: 2rem;
+            font-size: 1.3rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+        .result.critical {
+            background: #ffe6e6;
+            color: #d73027;
+            border: 2px solid #d73027;
+        }
+        .result.urgent {
+            background: #fff3cd;
+            color: #856404;
+            border: 2px solid #ffc107;
+        }
+        .result.non-urgent {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }
+        .attribution {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            color: black;
+            font-size: 0.9rem;
+            font-weight: normal;
+        }
+        .restart-btn {
+            margin-top: 1rem;
+            padding: 0.8rem 1.5rem;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .restart-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="language-selector">
+        <button onclick="changeLanguage('zh')" class="active" id="lang-zh">中文</button>
+        <button onclick="changeLanguage('en')" id="lang-en">English</button>
+        <button onclick="changeLanguage('id')" id="lang-id">Bahasa Indonesia</button>
+        <button onclick="changeLanguage('th')" id="lang-th">ไทย</button>
+    </div>
+    
+    <div id="question-container">
+        <div id="question" class="question"></div>
+        <div class="buttons">
+            <button onclick="answer('yes')" id="btn-yes">是</button>
+            <button onclick="answer('no')" id="btn-no">否</button>
+            <button onclick="answer('unsure')" id="btn-unsure">不確定</button>
+        </div>
+    </div>
+    <div id="result" class="result" style="display:none;">
+        <div id="result-text"></div>
+        <button class="restart-btn" onclick="restart()" id="btn-restart">重新開始</button>
+    </div>
+</div>
+<div class="attribution">by Dr.黃立壬</div>
+
+<script>
+let currentLanguage = 'zh';
+
+const translations = {
+    zh: {
+        yes: "是",
+        no: "否", 
+        unsure: "不確定",
+        restart: "重新開始",
+        critical: "🚨 危急：請立即前往急診處理。",
+        urgent: "⚠️ 注意：請儘速接受醫療評估。",
+        nonUrgent: "✅ 非緊急：您的狀況目前為非緊急，請耐心等候。"
+    },
+    en: {
+        yes: "Yes",
+        no: "No",
+        unsure: "Unsure",
+        restart: "Restart",
+        critical: "🚨 CRITICAL: Seek immediate emergency care.",
+        urgent: "⚠️ URGENT: Please seek medical evaluation promptly.",
+        nonUrgent: "✅ NON-URGENT: Your condition is currently non-urgent, please wait patiently."
+    },
+    id: {
+        yes: "Ya",
+        no: "Tidak",
+        unsure: "Tidak Yakin",
+        restart: "Mulai Ulang",
+        critical: "🚨 KRITIS: Segera cari perawatan darurat.",
+        urgent: "⚠️ MENDESAK: Harap segera mencari evaluasi medis.",
+        nonUrgent: "✅ TIDAK MENDESAK: Kondisi Anda saat ini tidak mendesak, harap bersabar menunggu."
+    },
+    th: {
+        yes: "ใช่",
+        no: "ไม่ใช่",
+        unsure: "ไม่แน่ใจ",
+        restart: "เริ่มใหม่",
+        critical: "🚨 วิกฤต: โปรดไปรับการรักษาฉุกเฉินทันที",
+        urgent: "⚠️ เร่งด่วน: โปรดไปรับการประเมินทางการแพทย์โดยเร็ว",
+        nonUrgent: "✅ ไม่เร่งด่วน: อาการของคุณในขณะนี้ไม่เร่งด่วน โปรดรอด้วยความอดทน"
+    }
+};
+
+const questions = [
+    {
+        zh: "心跳、呼吸停止，肢體及嘴唇發青、發紫？",
+        en: "Heart stopped, breathing stopped, limbs and lips turning blue or purple?",
+        id: "Jantung berhenti, napas berhenti, anggota badan dan bibir membiru atau ungu?",
+        th: "หัวใจหยุดเต้น หายใจหยุด แขนขาและริมฝีปากเป็นสีน้ำเงินหรือม่วง?",
+        category: "危急", weight: 10
+    },
+    {
+        zh: "體溫超過41℃或低於32℃？",
+        en: "Body temperature above 41°C or below 32°C?", 
+        id: "Suhu tubuh di atas 41°C atau di bawah 32°C?",
+        th: "อุณหภูมิร่างกายสูงกว่า 41°C หรือต่ำกว่า 32°C?",
+        category: "危急", weight: 10
+    },
+    {
+        zh: "無意識、只能呻吟或說單一字句？",
+        en: "Unconscious, can only moan or say single words?",
+        id: "Tidak sadar, hanya bisa mengerang atau mengucapkan kata tunggal?",
+        th: "หมดสติ สามารถครวญคราง หรือพูดคำเดียวเท่านั้น?",
+        category: "危急", weight: 10
+    },
+    {
+        zh: "持續抽搐且無意識？",
+        en: "Continuous seizures and unconscious?",
+        id: "Kejang terus-menerus dan tidak sadar?",
+        th: "ชักอย่างต่อเนื่องและหมดสติ?",
+        category: "危急", weight: 10
+    },
+    {
+        zh: "持續胸悶、胸痛且冒冷汗？",
+        en: "Persistent chest tightness, chest pain with cold sweats?",
+        id: "Sesak dada terus-menerus, nyeri dada dengan keringat dingin?",
+        th: "แน่นหน้าอกอย่างต่อเนื่อง เจ็บหน้าอกพร้อมเหงื่อออกเย็น?",
+        category: "危急", weight: 9
+    },
+    {
+        zh: "大量血便、黑便、嘔血？",
+        en: "Large amounts of bloody stool, black stool, or vomiting blood?",
+        id: "BAB berdarah dalam jumlah besar, BAB hitam, atau muntah darah?",
+        th: "อุจจาระเป็นเลือดจำนวนมาก อุจจาระสีดำ หรือ อาเจียนเป็นเลือด?",
+        category: "危急", weight: 9
+    },
+    {
+        zh: "頭頸軀幹骨盆部位大量出血？",
+        en: "Massive bleeding from head, neck, torso, or pelvis?",
+        id: "Perdarahan hebat di kepala, leher, batang tubuh, atau panggul?",
+        th: "เลือดออกมากจากศีรษะ คอ ลำตัว หรือเชิงกราน?",
+        category: "危急", weight: 9
+    },
+    {
+        zh: "高處墜落、車禍導致失去意識？",
+        en: "Fall from height or car accident causing loss of consciousness?",
+        id: "Jatuh dari ketinggian atau kecelakaan mobil yang menyebabkan kehilangan kesadaran?",
+        th: "ตกจากที่สูงหรืออุบัติเหตุรถยนต์ทำให้หมดสติ?",
+        category: "危急", weight: 9
+    },
+    {
+        zh: "突發性視覺改變？",
+        en: "Sudden vision changes?",
+        id: "Perubahan penglihatan mendadak?",
+        th: "การมองเห็นเปลี่ยนแปลงอย่างกะทันหัน?",
+        category: "危急", weight: 8
+    },
+    {
+        zh: "免疫功能不全且發燒？",
+        en: "Immunocompromised and having fever?",
+        id: "Sistem kekebalan tubuh lemah dan demam?",
+        th: "ภูมิคุ้มกันบกพร่องและมีไข้?",
+        category: "危急", weight: 8
+    },
+    {
+        zh: "會陰部穿刺傷與大量出血、生殖器腫脹變形？",
+        en: "Perineal puncture wound with massive bleeding, genital swelling or deformity?",
+        id: "Luka tusuk di perineum dengan perdarahan hebat, pembengkakan atau deformitas genital?",
+        th: "บาดแผลทะลุบริเวณฝีเย็บพร้อมเลือดออกมาก อวัยวะเพศบวมหรือผิดรูป?",
+        category: "危急", weight: 9
+    },
+    {
+        zh: "化學物質濺入眼睛？",
+        en: "Chemical splash in eyes?",
+        id: "Bahan kimia terciprat ke mata?",
+        th: "สารเคมีกระเด็นเข้าตา?",
+        category: "危急", weight: 8
+    },
+    {
+        zh: "外傷後出現動作或感覺異常？",
+        en: "Abnormal movement or sensation after trauma?",
+        id: "Gerakan atau sensasi abnormal setelah trauma?",
+        th: "การเคลื่อนไหวหรือความรู้สึกผิดปกติหลังจากได้รับอุบัติเหตุ?",
+        category: "危急", weight: 8
+    },
+    {
+        zh: "嚴重過敏或藥物反應導致呼吸困難？",
+        en: "Severe allergic or drug reaction causing breathing difficulty?",
+        id: "Reaksi alergi atau obat yang parah menyebabkan kesulitan bernapas?",
+        th: "ปฏิกิริยาแพ้รุนแรงหรือปฏิกิริยาต่อยาทำให้หายใจลำบาก?",
+        category: "危急", weight: 9
+    },
+    {
+        zh: "螫傷或咬傷導致呼吸困難或意識改變？",
+        en: "Sting or bite causing breathing difficulty or consciousness changes?",
+        id: "Sengatan atau gigitan menyebabkan kesulitan bernapas atau perubahan kesadaran?",
+        th: "ถูกต่อยหรือกัดทำให้หายใจลำบากหรือสติเปลี่ยนแปลง?",
+        category: "危急", weight: 9
+    },
+    {
+        zh: "走動時呼吸急促？",
+        en: "Shortness of breath when walking?",
+        id: "Sesak napas saat berjalan?",
+        th: "หายใจหอบเมื่อเดิน?",
+        category: "注意", weight: 7
+    },
+    {
+        zh: "經期逾期且腹痛？",
+        en: "Overdue menstrual period with abdominal pain?",
+        id: "Menstruasi terlambat dan nyeri perut?",
+        th: "ประจำเดือนมาช้าและปวดท้อง?",
+        category: "注意", weight: 6
+    },
+    {
+        zh: "無法控制的腹瀉或嘔吐？",
+        en: "Uncontrollable diarrhea or vomiting?",
+        id: "Diare atau muntah yang tidak terkontrol?",
+        th: "ท้องเสียหรืออาเจียนที่ควบคุมไม่ได้?",
+        category: "注意", weight: 6
+    },
+    {
+        zh: "骨折或脫臼？",
+        en: "Fracture or dislocation?",
+        id: "Patah tulang atau dislokasi?",
+        th: "กระดูกหักหรือเคล็ด?",
+        category: "注意", weight: 6
+    },
+    {
+        zh: "咖啡色嘔吐物或黑便？",
+        en: "Coffee-colored vomit or black stool?",
+        id: "Muntah berwarna kopi atau BAB hitam?",
+        th: "อาเจียนสีกาแฟหรืออุจจาระสีดำ?",
+        category: "注意", weight: 6
+    },
+    {
+        zh: "高血壓（>200/110）但無症狀？",
+        en: "High blood pressure (>200/110) but no symptoms?",
+        id: "Tekanan darah tinggi (>200/110) tapi tanpa gejala?",
+        th: "ความดันโลหิตสูง (>200/110) แต่ไม่มีอาการ?",
+        category: "注意", weight: 5
+    },
+    {
+        zh: "抽搐後意識已恢復？",
+        en: "Consciousness recovered after seizure?",
+        id: "Kesadaran pulih setelah kejang?",
+        th: "สติฟื้นแล้วหลังจากชัก?",
+        category: "注意", weight: 5
+    },
+    {
+        zh: "廣泛性紅疹/水泡？",
+        en: "Widespread rash/blisters?",
+        id: "Ruam/lepuh yang meluas?",
+        th: "ผื่นแดง/ตุ่มน้ำแพร่กว้าง?",
+        category: "注意", weight: 5
+    },
+    {
+        zh: "毒氣或氣體吸入但無呼吸窘迫？",
+        en: "Toxic gas inhalation but no respiratory distress?",
+        id: "Menghirup gas beracun tapi tidak sesak napas?",
+        th: "สูดก๊าซพิษแต่ไม่มีอาการหายใจลำบาก?",
+        category: "注意", weight: 5
+    },
+    {
+        zh: "急產（宮縮 >2 分鐘）？",
+        en: "Precipitous labor (contractions >2 minutes)?",
+        id: "Persalinan cepat (kontraksi >2 menit)?",
+        th: "คลอดเร็ว (หดมดลูก >2 นาที)?",
+        category: "注意", weight: 7
+    },
+    {
+        zh: "局部蜂窩性組織炎？",
+        en: "Localized cellulitis?",
+        id: "Selulitis lokal?",
+        th: "เนื้อเยื่ออักเสบเฉพาะที่?",
+        category: "非緊急", weight: 3
+    },
+    {
+        zh: "解尿疼痛但沒有發燒？",
+        en: "Painful urination but no fever?",
+        id: "Nyeri buang air kecil tapi tidak demam?",
+        th: "ปัสสาวะเจ็บแต่ไม่มีไข้?",
+        category: "非緊急", weight: 2
+    },
+    {
+        zh: "陰道點狀出血？",
+        en: "Vaginal spotting?",
+        id: "Bercak darah vagina?",
+        th: "เลือดออกทางช่องคลอดเป็นจุด?",
+        category: "非緊急", weight: 2
+    },
+    {
+        zh: "輕微腹瀉且無脫水？",
+        en: "Mild diarrhea without dehydration?",
+        id: "Diare ringan tanpa dehidrasi?",
+        th: "ท้องเสียเล็กน้อยไม่มีอาการขาดน้ำ?",
+        category: "非緊急", weight: 1
+    },
+    {
+        zh: "慢性腹水欲抽腹水？",
+        en: "Chronic ascites requiring drainage?",
+        id: "Asites kronis memerlukan drainase?",
+        th: "น้ำในช่องท้องเรื้อรังต้องการระบายน้ำ?",
+        category: "非緊急", weight: 2
+    },
+    {
+        zh: "反覆性疼痛或暈眩？",
+        en: "Recurrent pain or dizziness?",
+        id: "Nyeri atau pusing berulang?",
+        th: "ปวดหรือเวียนหัวซ้ำๆ?",
+        category: "非緊急", weight: 2
+    },
+    {
+        zh: "關節腫、輕微擦傷或瘀青？",
+        en: "Joint swelling, minor abrasions or bruising?",
+        id: "Pembengkakan sendi, lecet ringan atau memar?",
+        th: "ข้อบวม รอยถลอกเล็กน้อย หรือรอยช้ำ?",
+        category: "非緊急", weight: 1
+    }
+];
+
+let current = 0;
+let total = 0;
+let answers = [];
+
+function changeLanguage(lang) {
+    currentLanguage = lang;
+    
+    // Update language buttons
+    document.querySelectorAll('.language-selector button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById('lang-' + lang).classList.add('active');
+    
+    // Update button texts
+    updateButtonTexts();
+    
+    // Update current question if showing
+    if (current < questions.length) {
+        showQuestion();
+    }
+}
+
+function updateButtonTexts() {
+    document.getElementById('btn-yes').textContent = translations[currentLanguage].yes;
+    document.getElementById('btn-no').textContent = translations[currentLanguage].no;
+    document.getElementById('btn-unsure').textContent = translations[currentLanguage].unsure;
+    document.getElementById('btn-restart').textContent = translations[currentLanguage].restart;
+}
+
+function showQuestion() {
+    document.getElementById('question').textContent = questions[current][currentLanguage];
+}
+
+function answer(response) {
+    answers.push({ ...questions[current], response });
+    if (response === 'yes') total += questions[current].weight;
+
+    if (response === 'yes' && questions[current].category === '危急') {
+        return showResult("危急");
+    }
+
+    current++;
+    if (current < questions.length) {
+        showQuestion();
+    } else {
+        showResult();
+    }
+}
+
+function showResult(overrideLevel = null) {
+    document.getElementById('question-container').style.display = 'none';
+    const resultDiv = document.getElementById('result');
+    const resultText = document.getElementById('result-text');
+
+    let finalLevel = overrideLevel;
+    if (!finalLevel) {
+        const hasCritical = answers.some(q => q.response === 'yes' && q.category === "危急");
+        const hasWarning = answers.some(q => q.response === 'yes' && q.category === "注意");
+
+        if (hasCritical || total >= 25) finalLevel = "危急";
+        else if (hasWarning || total >= 15) finalLevel = "注意";
+        else finalLevel = "非緊急";
+    }
+
+    // Clear previous classes
+    resultDiv.className = 'result';
+    
+    if (finalLevel === "危急") {
+        resultText.textContent = translations[currentLanguage].critical;
+        resultDiv.classList.add('critical');
+    } else if (finalLevel === "注意") {
+        resultText.textContent = translations[currentLanguage].urgent;
+        resultDiv.classList.add('urgent');
+    } else {
+        resultText.textContent = translations[currentLanguage].nonUrgent;
+        resultDiv.classList.add('non-urgent');
+    }
+
+    resultDiv.style.display = 'block';
+}
+
+function restart() {
+    current = 0;
+    total = 0;
+    answers = [];
+    document.getElementById('question-container').style.display = 'block';
+    document.getElementById('result').style.display = 'none';
+    showQuestion();
+}
+
+// Initialize
+updateButtonTexts();
+showQuestion();
+</script>
+</body>
+</html>
